@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
-import json, os, asyncio, traceback
+import json, os, traceback
 
 # ================= ENV =================
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -13,8 +13,15 @@ CIARA_LEVEL_COLOR = {
     2: 0xB30000,
     3: 0x0F0F0F
 }
+
 CIARA_FOOTER = "⚔️ LORD OF CIARA | KỶ LUẬT TẠO SỨC MẠNH"
 CIARA_ICON = "https://cdn-icons-png.flaticon.com/512/1695/1695213.png"
+
+CIARA_BANNER_BY_LEVEL = {
+    1: "https://i.imgur.com/RED_LV1.png",
+    2: "https://i.imgur.com/RED_LV2.png",
+    3: "https://i.imgur.com/BLACK_LV3.png"
+}
 
 # ================= BOT =================
 intents = discord.Intents.default()
@@ -39,7 +46,10 @@ def load():
             "users": {}
         }
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if "case_id" not in data:
+        data["case_id"] = 0
+    return data
 
 def save(d):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -48,6 +58,8 @@ def save(d):
 data = load()
 
 def next_case_id():
+    if "case_id" not in data:
+        data["case_id"] = 0
     data["case_id"] += 1
     save(data)
     return f"#{data['case_id']:04d}"
@@ -58,33 +70,33 @@ def get_user(uid):
         data["users"][uid] = []
     return data["users"][uid]
 
-# ================= PERMISSION =================
+# ================= HELPERS =================
 def is_admin(member: discord.Member):
     return member.guild_permissions.administrator
 
-# ================= SAFE ROLE HANDLER =================
+def get_ciara_banner(scar_count: int):
+    if scar_count >= 3:
+        return CIARA_BANNER_BY_LEVEL[3]
+    return CIARA_BANNER_BY_LEVEL.get(scar_count)
+
 async def update_scar_roles(member, count):
     try:
         guild = member.guild
         scar_roles = data["config"]["scar_roles"]
 
-        # remove old
         for rname in scar_roles.values():
             role = discord.utils.get(guild.roles, name=rname)
             if role and role in member.roles:
                 await member.remove_roles(role)
 
-        # add new
         if count > 0:
             level = str(min(count, 3))
             role = discord.utils.get(guild.roles, name=scar_roles[level])
             if role:
                 await member.add_roles(role)
-
     except Exception as e:
         print("❌ ROLE ERROR:", e)
 
-# ================= SAFE SEND =================
 async def safe_followup(interaction, **kwargs):
     try:
         await interaction.followup.send(**kwargs)
@@ -93,13 +105,20 @@ async def safe_followup(interaction, **kwargs):
 
 async def send_log(guild, embed):
     try:
-        cid = data["config"]["log_channel"]
-        if cid:
-            ch = guild.get_channel(cid)
-            if ch:
-                await ch.send(embed=embed)
+        cid = data["config"].get("log_channel")
+        if not cid:
+            return
+        ch = guild.get_channel(cid)
+        if ch:
+            await ch.send(embed=embed)
     except Exception as e:
         print("❌ LOG ERROR:", e)
+
+async def send_dm_scar(member, embed):
+    try:
+        await member.send(embed=embed)
+    except Exception:
+        print("⚠️ User tắt DM")
 
 # ================= READY =================
 @bot.event
@@ -111,131 +130,109 @@ async def on_ready():
 async def on_error(event, *args):
     traceback.print_exc()
 
-# ================= COMMANDS =================
+# ================= MODAL =================
+class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – LORD OF CIARA"):
+    ly_do = discord.ui.TextInput(
+        label="📌 Lý do vi phạm",
+        style=discord.TextStyle.paragraph,
+        placeholder="Nhập lý do ghi sẹo...",
+        max_length=300,
+        required=True
+    )
 
-@bot.tree.command(name="ghiseo", description="⚔️ Ghi sẹo cho thành viên")
-async def ghiseo(interaction: discord.Interaction, member: discord.Member, ly_do: str):
+    def __init__(self, member: discord.Member):
+        super().__init__()
+        self.member = member
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await ghiseo_core(interaction, self.member, self.ly_do.value)
+
+# ================= CORE LOGIC =================
+async def ghiseo_core(interaction, member, ly_do):
     await interaction.response.defer(ephemeral=False)
 
-    try:
-        if not is_admin(interaction.user):
-            return await safe_followup(interaction, content="❌ Bạn không có quyền", ephemeral=True)
+    if not is_admin(interaction.user):
+        return await safe_followup(interaction, content="❌ Bạn không có quyền", ephemeral=True)
 
-        u = get_user(member.id)
-        case_id = next_case_id()
+    u = get_user(member.id)
+    case_id = next_case_id()
 
-        u.append({
-            "case": case_id,
-            "reason": ly_do,
-            "by": interaction.user.name,
-            "time": datetime.now().strftime("%d/%m/%Y %H:%M")
-        })
-        save(data)
+    record = {
+        "case": case_id,
+        "reason": ly_do,
+        "by": interaction.user.name,
+        "time": datetime.now().strftime("%d/%m/%Y %H:%M")
+    }
+    u.append(record)
+    save(data)
 
-        scar_count = len(u)
-        await update_scar_roles(member, scar_count)
+    scar_count = len(u)
+    await update_scar_roles(member, scar_count)
 
-        embed = discord.Embed(
-            title="⚔️ GHI NHẬN SẸO – LORD OF CIARA",
-            description="🩸 **Vết sẹo đã được ghi vào hồ sơ**",
-            color=CIARA_LEVEL_COLOR.get(min(scar_count, 3), 0x8B0000)
-        )
-        embed.add_field(name="🧾 Case ID", value=f"`{case_id}`")
-        embed.add_field(name="👤 Thành viên", value=member.mention, inline=False)
-        embed.add_field(name="📌 Lý do", value=f"```{ly_do}```", inline=False)
-        embed.add_field(name="☠️ Tổng sẹo", value=f"**{scar_count}**")
-        embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
+    # ===== PUBLIC EMBED =====
+    public_embed = discord.Embed(
+        title="⚔️ GHI NHẬN SẸO – LORD OF CIARA",
+        description="🩸 **Vết sẹo đã được ghi vào hồ sơ**",
+        color=CIARA_LEVEL_COLOR.get(min(scar_count, 3), 0x8B0000)
+    )
+    public_embed.add_field(name="🧾 Case ID", value=f"`{case_id}`")
+    public_embed.add_field(name="👤 Thành viên", value=member.mention, inline=False)
+    public_embed.add_field(name="📌 Lý do", value=f"```{ly_do}```", inline=False)
+    public_embed.add_field(name="☠️ Tổng sẹo", value=str(scar_count))
+    public_embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-        await safe_followup(interaction, embed=embed)
-        await send_log(interaction.guild, embed)
+    await safe_followup(
+        interaction,
+        content=f"@everyone ⚠️ {member.mention}",
+        embed=public_embed
+    )
 
-    except Exception as e:
-        print("❌ GHISEO ERROR:", e)
-        await safe_followup(interaction, content="⚠️ Đã ghi sẹo nhưng có lỗi phụ (Admin check log)")
+    # ===== LOG EMBED =====
+    log_embed = discord.Embed(
+        title="📥 LOG SẸO – CIARA",
+        color=CIARA_LEVEL_COLOR.get(min(scar_count, 3), 0x8B0000),
+        timestamp=datetime.now()
+    )
+    log_embed.add_field(name="🧾 Case ID", value=case_id)
+    log_embed.add_field(name="👤 Thành viên", value=f"{member} ({member.id})", inline=False)
+    log_embed.add_field(name="✍️ Ghi bởi", value=interaction.user.mention)
+    log_embed.add_field(name="📌 Lý do", value=f"```{ly_do}```", inline=False)
+    log_embed.add_field(name="☠️ Tổng sẹo", value=str(scar_count))
+    banner = get_ciara_banner(scar_count)
+    if banner:
+        log_embed.set_image(url=banner)
+    log_embed.set_footer(text="CIARA | LOG HỆ THỐNG", icon_url=CIARA_ICON)
 
-@bot.tree.command(name="goiseo", description="➖ Gỡ 1 sẹo")
-async def goiseo(interaction: discord.Interaction, member: discord.Member):
-    await interaction.response.defer()
+    await send_log(interaction.guild, log_embed)
 
-    try:
-        if not is_admin(interaction.user):
-            return await safe_followup(interaction, content="❌ Bạn không có quyền", ephemeral=True)
+    # ===== DM =====
+    dm_embed = discord.Embed(
+        title="⚔️ THÔNG BÁO KỶ LUẬT – CIARA",
+        description="Bạn đã bị ghi nhận **1 vết sẹo**",
+        color=CIARA_LEVEL_COLOR.get(min(scar_count, 3), 0x8B0000)
+    )
+    dm_embed.add_field(name="🧾 Case ID", value=case_id)
+    dm_embed.add_field(name="📌 Lý do", value=f"```{ly_do}```", inline=False)
+    dm_embed.add_field(name="☠️ Tổng sẹo", value=str(scar_count))
+    dm_embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-        u = get_user(member.id)
-        if not u:
-            return await safe_followup(interaction, content="⚠️ Thành viên không có sẹo")
+    await send_dm_scar(member, dm_embed)
 
-        u.pop()
-        save(data)
-        await update_scar_roles(member, len(u))
+# ================= COMMANDS =================
+@bot.tree.command(name="ghiseo", description="⚔️ Ghi sẹo cho thành viên")
+async def ghiseo(interaction: discord.Interaction, member: discord.Member):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message("❌ Bạn không có quyền", ephemeral=True)
+    await interaction.response.send_modal(GhiSeoModal(member))
 
-        embed = discord.Embed(
-            title="🔥 GIẢM SẸO",
-            description=f"{member.mention} đã được xoá 1 sẹo",
-            color=0x1ABC9C
-        )
-        embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
+@bot.tree.command(name="datkenhlog", description="📥 Đặt kênh log sẹo")
+async def datkenhlog(interaction: discord.Interaction, channel: discord.TextChannel):
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("❌ Chỉ Admin server", ephemeral=True)
 
-        await safe_followup(interaction, embed=embed)
-        await send_log(interaction.guild, embed)
-
-    except Exception as e:
-        print("❌ GOISEO ERROR:", e)
-        await safe_followup(interaction, content="⚠️ Có lỗi nhưng bot không bị treo")
-
-@bot.tree.command(name="resetseo", description="♻️ Xoá sạch sẹo")
-async def resetseo(interaction: discord.Interaction, member: discord.Member):
-    await interaction.response.defer()
-
-    try:
-        if not is_admin(interaction.user):
-            return await safe_followup(interaction, content="❌ Bạn không có quyền", ephemeral=True)
-
-        data["users"][str(member.id)] = []
-        save(data)
-        await update_scar_roles(member, 0)
-
-        embed = discord.Embed(
-            title="🏴‍☠️ ÂN XÁ CIARA",
-            description=f"Hồ sơ {member.mention} đã được làm sạch",
-            color=0xC9A227
-        )
-        embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
-
-        await safe_followup(interaction, embed=embed)
-        await send_log(interaction.guild, embed)
-
-    except Exception as e:
-        print("❌ RESETSEO ERROR:", e)
-        await safe_followup(interaction, content="⚠️ Có lỗi nhưng bot vẫn sống")
-
-@bot.tree.command(name="xemseo", description="👁️ Xem sẹo của bạn")
-async def xemseo(interaction: discord.Interaction):
-    try:
-        u = get_user(interaction.user.id)
-        if not u:
-            return await interaction.response.send_message(
-                "✨ Bạn là công dân sạch của **LORD OF CIARA**",
-                ephemeral=True
-            )
-
-        desc = "\n".join(
-            f"🧾 `{v['case']}` | ⚠️ {v['reason']} _(by {v['by']})_"
-            for v in u
-        )
-
-        embed = discord.Embed(
-            title="👁️ HỒ SƠ SẸO CÁ NHÂN",
-            description=desc,
-            color=0x2980B9
-        )
-        embed.add_field(name="☠️ Tổng sẹo", value=f"**{len(u)}**")
-        embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    except Exception as e:
-        print("❌ XEMSEO ERROR:", e)
+    data["config"]["log_channel"] = channel.id
+    save(data)
+    await interaction.response.send_message(f"✅ Đã đặt kênh log tại {channel.mention}")
 
 # ================= START =================
 if __name__ == "__main__":
