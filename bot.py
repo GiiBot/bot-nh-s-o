@@ -21,9 +21,9 @@ CIARA_BANNER_BY_LEVEL = {
 
 # ================= RP PENALTY =================
 PENALTY_RULES = {
-    2: "🔨 Lao động RP 30 phút",
-    3: "⛓️ Jail RP 60 phút",
-    5: "👢 Kick khỏi server",
+    2: "🔨 Đóng quỹ 400IG",
+    3: "⛓️ Đóng quỹ 1m IG",
+    5: "👢 Kick khỏi crew",
     7: "🔨 Ban vĩnh viễn"
 }
 
