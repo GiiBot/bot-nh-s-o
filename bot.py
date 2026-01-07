@@ -11,17 +11,14 @@ DATA_FILE = "data.json"
 VN_TZ = timezone(timedelta(hours=7))
 DEADLINE_DAYS = 7
 
-# ================= THEME - FIXED =================
+# ================= THEME =================
 COLOR = {
     1: 0xFF6B6B,  # Đỏ nhạt - cảnh cáo đầu
     2: 0xFF4757,  # Đỏ vừa - cảnh cáo lần 2
     3: 0xEE5A6F   # Đỏ đậm - nghiêm trọng
 }
 FOOTER = "⚔️ LORD OF CIARA | KỶ LUẬT TẠO SỨC MẠNH"
-# Icon kiếm hợp lệ từ CDN
-ICON = "https://cdn.discordapp.com/attachments/1234567890/sword-icon.png"
-# Banner gif cho embed
-BANNER = "https://i.imgur.com/sword-animation.gif"
+ICON = "https://i.imgur.com/sword.png"
 
 # ================= PENALTY =================
 PENALTY = {
@@ -100,7 +97,7 @@ def countdown(deadline):
 def ciara_embed(title, desc, color):
     """Tạo embed với theme CIARA"""
     e = discord.Embed(
-        title=f"# {title}",  # Font to hơn
+        title=f"# {title}",
         description=desc,
         color=color,
         timestamp=datetime.now(VN_TZ)
@@ -146,7 +143,7 @@ async def before_auto_ping():
 # ================= CONFIRM VIEW =================
 class ConfirmPaidView(discord.ui.View):
     def __init__(self, member, record):
-        super().__init__(timeout=300)  # 5 phút timeout
+        super().__init__(timeout=300)
         self.member = member
         self.record = record
 
@@ -172,7 +169,6 @@ class ConfirmPaidView(discord.ui.View):
         
         await interaction.response.edit_message(embed=embed, view=None)
         
-        # Gửi DM cho member
         try:
             await self.member.send(
                 f"# ✅ THANH TOÁN THÀNH CÔNG\n\n"
@@ -194,18 +190,10 @@ class ConfirmPaidView(discord.ui.View):
 
 @bot.tree.command(name="ghiseo", description="⚔️ Ghi sẹo vi phạm cho thành viên")
 async def ghiseo(interaction: discord.Interaction, member: discord.Member, lydo: str):
-    """
-    Ghi nhận vi phạm cho thành viên
-    
-    Parameters:
-    -----------
-    member: Thành viên vi phạm
-    lydo: Lý do vi phạm
-    """
+    """Ghi nhận vi phạm cho thành viên"""
     if not is_admin(interaction.user):
         return await interaction.response.send_message("❌ Chỉ Admin mới có quyền sử dụng lệnh này!", ephemeral=True)
 
-    # Tạo record mới
     user_records = get_user(member.id)
     violation_count = len(user_records) + 1
     
@@ -223,7 +211,6 @@ async def ghiseo(interaction: discord.Interaction, member: discord.Member, lydo:
     user_records.append(record)
     save()
 
-    # Tạo embed thông báo
     penalty_text = PENALTY.get(violation_count, "⛔ Xử lý đặc biệt")
     color = COLOR.get(min(violation_count, 3), 0xFF0000)
     
@@ -245,7 +232,6 @@ async def ghiseo(interaction: discord.Interaction, member: discord.Member, lydo:
         embed=embed
     )
     
-    # Gửi DM cho member
     try:
         await member.send(
             f"# ⚠️ THÔNG BÁO VI PHẠM CIARA\n\n"
@@ -261,14 +247,7 @@ async def ghiseo(interaction: discord.Interaction, member: discord.Member, lydo:
 
 @bot.tree.command(name="xemseo", description="🔍 Xem sẹo vi phạm của bạn")
 async def xemseo(interaction: discord.Interaction, member: discord.Member = None):
-    """
-    Xem lịch sử vi phạm
-    
-    Parameters:
-    -----------
-    member: (Optional) Thành viên cần xem (Admin only)
-    """
-    # Nếu không chỉ định member, xem của chính mình
+    """Xem lịch sử vi phạm"""
     target = member if member and is_admin(interaction.user) else interaction.user
     
     user_records = get_user(target.id)
@@ -279,7 +258,6 @@ async def xemseo(interaction: discord.Interaction, member: discord.Member = None
             ephemeral=True
         )
     
-    # Tạo danh sách vi phạm
     violations_text = ""
     unpaid_count = 0
     
@@ -310,13 +288,7 @@ async def xemseo(interaction: discord.Interaction, member: discord.Member = None
 
 @bot.tree.command(name="xacnhanphat", description="💰 Xác nhận thành viên đã đóng phạt")
 async def xacnhanphat(interaction: discord.Interaction, member: discord.Member):
-    """
-    Xác nhận thanh toán phạt
-    
-    Parameters:
-    -----------
-    member: Thành viên cần xác nhận
-    """
+    """Xác nhận thanh toán phạt"""
     if not is_admin(interaction.user):
         return await interaction.response.send_message("❌ Chỉ Admin mới có quyền sử dụng lệnh này!", ephemeral=True)
     
@@ -325,7 +297,6 @@ async def xacnhanphat(interaction: discord.Interaction, member: discord.Member):
     if not user_records:
         return await interaction.response.send_message("⚠️ Thành viên này không có vi phạm nào!", ephemeral=True)
     
-    # Tìm vi phạm chưa thanh toán
     unpaid = [r for r in user_records if not r["paid"]]
     
     if not unpaid:
@@ -357,7 +328,6 @@ async def dashboard(interaction: discord.Interaction):
     paid = total_case - unpaid
     total_members = len(data["users"])
     
-    # Top vi phạm
     top_violators = sorted(
         data["users"].items(),
         key=lambda x: len(x[1]),
@@ -388,20 +358,12 @@ async def dashboard(interaction: discord.Interaction):
 
 @bot.tree.command(name="xoaseo", description="🗑️ Xóa một sẹo vi phạm")
 async def xoaseo(interaction: discord.Interaction, member: discord.Member, case_id: str):
-    """
-    Xóa vi phạm (Admin only)
-    
-    Parameters:
-    -----------
-    member: Thành viên
-    case_id: Mã case cần xóa (vd: #0001)
-    """
+    """Xóa vi phạm (Admin only)"""
     if not is_admin(interaction.user):
         return await interaction.response.send_message("❌ Chỉ Admin mới có quyền sử dụng lệnh này!", ephemeral=True)
     
     user_records = get_user(member.id)
     
-    # Tìm và xóa case
     for i, r in enumerate(user_records):
         if r["case"] == case_id:
             deleted = user_records.pop(i)
@@ -450,7 +412,6 @@ async def on_ready():
     print(f"👥 Users: {len(bot.users)}")
     
     try:
-        # Sync commands
         if GUILD_ID:
             guild = discord.Object(id=GUILD_ID)
             bot.tree.clear_commands(guild=guild)
@@ -460,7 +421,6 @@ async def on_ready():
             synced = await bot.tree.sync()
             print(f"✅ Đã sync {len(synced)} lệnh global")
         
-        # Start auto ping task
         if not auto_ping_unpaid.is_running():
             auto_ping_unpaid.start()
             print("✅ Đã bật auto ping")
