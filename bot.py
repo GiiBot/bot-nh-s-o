@@ -9,6 +9,24 @@ GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 DATA_FILE = "data.json"
 VN_TZ = timezone(timedelta(hours=7))
 
+# ================= SAFE INTERACTION =================
+def safe_interaction(func):
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+            return await func(interaction, *args, **kwargs)
+        except Exception as e:
+            print("INTERACTION ERROR:", e)
+            try:
+                await interaction.followup.send(
+                    "❌ Đã xảy ra lỗi khi xử lý lệnh.",
+                    ephemeral=True
+                )
+            except:
+                pass
+    return wrapper
+
 # ================= CIARA THEME =================
 CIARA_LEVEL_COLOR = {1: 0x8B0000, 2: 0xB30000, 3: 0x0F0F0F}
 CIARA_FOOTER = "⚔️ LORD OF CIARA | KỶ LUẬT TẠO SỨC MẠNH"
@@ -172,8 +190,7 @@ class TopSeoSelectView(discord.ui.View):
         self.add_item(self.select)
 
     async def callback(self, interaction):
-        uid = int(self.select.values[0])
-        paginator = SeoProfilePaginator(uid)
+        paginator = SeoProfilePaginator(int(self.select.values[0]))
         await interaction.response.send_message(
             embed=paginator.build(interaction.guild),
             view=paginator,
@@ -221,6 +238,7 @@ class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – LORD OF CIARA"):
             ),
             color=CIARA_LEVEL_COLOR.get(min(scar_count, 3))
         )
+
         embed.add_field(name="📌 LÝ DO", value=f"> {self.ly_do.value}", inline=False)
 
         penalty = PENALTY_RULES.get(scar_count)
@@ -242,29 +260,31 @@ class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – LORD OF CIARA"):
         await send_dm(self.member, embed)
 
 # ================= SLASH COMMANDS =================
-@bot.tree.command(name="ghiseo", description="⚔️ Ghi sẹo cho thành viên")
+@bot.tree.command(name="ghiseo")
 async def ghiseo(interaction, member: discord.Member):
     if not is_admin(interaction.user):
         return await interaction.response.send_message("❌ Không có quyền", ephemeral=True)
     await interaction.response.send_modal(GhiSeoModal(member))
 
-@bot.tree.command(name="xemseo", description="👁️ Xem hồ sơ sẹo của bạn")
+@bot.tree.command(name="xemseo")
+@safe_interaction
 async def xemseo(interaction):
     u = get_user(interaction.user.id)
     if not u:
-        return await interaction.response.send_message("✨ Bạn là công dân sạch.", ephemeral=True)
+        return await interaction.followup.send("✨ Bạn là công dân sạch.", ephemeral=True)
     paginator = SeoProfilePaginator(interaction.user.id)
-    await interaction.response.send_message(
+    await interaction.followup.send(
         embed=paginator.build(interaction.guild),
         view=paginator,
         ephemeral=True
     )
 
-@bot.tree.command(name="topseo", description="☠️ Bảng tử hình – BXH sẹo")
+@bot.tree.command(name="topseo")
+@safe_interaction
 async def topseo(interaction):
     ranking = [(int(uid), len(v)) for uid, v in data["users"].items() if v]
     if not ranking:
-        return await interaction.response.send_message("✨ Chưa có ai bị ghi sẹo.", ephemeral=True)
+        return await interaction.followup.send("✨ Chưa có ai bị ghi sẹo.", ephemeral=True)
 
     ranking.sort(key=lambda x: x[1], reverse=True)
     ranking = ranking[:10]
@@ -285,9 +305,10 @@ async def topseo(interaction):
         )
 
     embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
-    await interaction.response.send_message(embed=embed, view=TopSeoSelectView(ranking))
+    await interaction.followup.send(embed=embed, view=TopSeoSelectView(ranking))
 
-@bot.tree.command(name="thongke", description="📊 Thống kê sẹo theo tuần")
+@bot.tree.command(name="thongke")
+@safe_interaction
 async def thongke(interaction):
     week = datetime.now(VN_TZ).isocalendar()[1]
     stats = {}
@@ -298,7 +319,7 @@ async def thongke(interaction):
                 stats[uid] = stats.get(uid, 0) + 1
 
     if not stats:
-        return await interaction.response.send_message("✨ Tuần này không có vi phạm.", ephemeral=True)
+        return await interaction.followup.send("✨ Tuần này không có vi phạm.", ephemeral=True)
 
     embed = discord.Embed(
         title=f"📊 THỐNG KÊ TUẦN {week}",
@@ -314,12 +335,13 @@ async def thongke(interaction):
             inline=False
         )
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
-@bot.tree.command(name="lichsuadmin", description="🧾 Lịch sử admin thao tác")
+@bot.tree.command(name="lichsuadmin")
+@safe_interaction
 async def lichsuadmin(interaction):
     if not is_admin(interaction.user):
-        return await interaction.response.send_message("❌ Admin only", ephemeral=True)
+        return await interaction.followup.send("❌ Admin only", ephemeral=True)
 
     logs = data["admin_logs"][-10:]
     embed = discord.Embed(title="🧾 LỊCH SỬ ADMIN", color=0x0F0F0F)
@@ -331,25 +353,22 @@ async def lichsuadmin(interaction):
             inline=False
         )
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
-# ================= READY =================
-@bot.tree.command(name="datkenhlog", description="📥 Đặt kênh log sẹo")
-async def datkenhlog(interaction: discord.Interaction, channel: discord.TextChannel):
+@bot.tree.command(name="datkenhlog")
+@safe_interaction
+async def datkenhlog(interaction, channel: discord.TextChannel):
     if not is_admin(interaction.user):
-        return await interaction.response.send_message(
-            "❌ Chỉ Admin mới dùng được lệnh này",
-            ephemeral=True
-        )
+        return await interaction.followup.send("❌ Chỉ Admin", ephemeral=True)
 
     data["config"]["log_channel"] = channel.id
     save(data)
-
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"✅ Đã đặt kênh log sẹo: {channel.mention}",
         ephemeral=True
     )
 
+# ================= READY =================
 @bot.event
 async def on_ready():
     if GUILD_ID:
