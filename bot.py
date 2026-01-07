@@ -9,9 +9,9 @@ DATA_FILE = "data.json"
 
 # ================= CIARA THEME =================
 CIARA_LEVEL_COLOR = {
-    1: 0x8B0000,  # Đỏ sẫm
-    2: 0xB30000,  # Đỏ máu
-    3: 0x0F0F0F   # Đen
+    1: 0x8B0000,  # đỏ sẫm
+    2: 0xB30000,  # đỏ máu
+    3: 0x0F0F0F   # đen
 }
 
 CIARA_FOOTER = "⚔️ LORD OF CIARA | KỶ LUẬT TẠO SỨC MẠNH"
@@ -29,7 +29,6 @@ def load():
     if not os.path.exists(DATA_FILE):
         return {
             "config": {
-                "admin_role": "Admin",
                 "log_channel": None,
                 "scar_roles": {
                     "1": "Sẹo 1",
@@ -56,6 +55,7 @@ def next_case_id():
 
 # ================= HELPERS =================
 def is_admin(member: discord.Member):
+    # ✅ CÁCH 3: DÙNG QUYỀN ADMIN DISCORD
     return member.guild_permissions.administrator
 
 def get_user(uid):
@@ -68,13 +68,13 @@ async def update_scar_roles(member, count):
     guild = member.guild
     scar_roles = data["config"]["scar_roles"]
 
-    # Gỡ role cũ
+    # gỡ role cũ
     for rname in scar_roles.values():
         role = discord.utils.get(guild.roles, name=rname)
         if role and role in member.roles:
             await member.remove_roles(role)
 
-    # Gán role mới
+    # gán role mới
     if count > 0:
         level = str(min(count, 3))
         role_name = scar_roles.get(level)
@@ -103,19 +103,20 @@ async def on_error(event, *args):
 
 @bot.tree.command(name="ghiseo", description="⚔️ Ghi sẹo cho thành viên")
 async def ghiseo(interaction: discord.Interaction, member: discord.Member, ly_do: str):
+    await interaction.response.defer()  # 🔴 FIX TIMEOUT
+
     if not is_admin(interaction.user):
-        return await interaction.response.send_message("❌ Bạn không có quyền", ephemeral=True)
+        return await interaction.followup.send("❌ Bạn không có quyền", ephemeral=True)
 
     u = get_user(member.id)
     case_id = next_case_id()
 
-    record = {
+    u.append({
         "case": case_id,
         "reason": ly_do,
         "by": interaction.user.name,
         "time": datetime.now().strftime("%d/%m/%Y %H:%M")
-    }
-    u.append(record)
+    })
     save(data)
 
     scar_count = len(u)
@@ -134,17 +135,19 @@ async def ghiseo(interaction: discord.Interaction, member: discord.Member, ly_do
     embed.add_field(name="☠️ Tổng sẹo", value=f"**{scar_count}**", inline=True)
     embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
     await send_log(interaction.guild, embed)
 
 @bot.tree.command(name="goiseo", description="➖ Gỡ 1 sẹo cho thành viên")
 async def goiseo(interaction: discord.Interaction, member: discord.Member):
+    await interaction.response.defer()  # 🔴 FIX TIMEOUT
+
     if not is_admin(interaction.user):
-        return await interaction.response.send_message("❌ Bạn không có quyền", ephemeral=True)
+        return await interaction.followup.send("❌ Bạn không có quyền", ephemeral=True)
 
     u = get_user(member.id)
     if not u:
-        return await interaction.response.send_message("⚠️ Thành viên không có sẹo")
+        return await interaction.followup.send("⚠️ Thành viên không có sẹo")
 
     u.pop()
     save(data)
@@ -159,13 +162,15 @@ async def goiseo(interaction: discord.Interaction, member: discord.Member):
     embed.add_field(name="⚖️ Sẹo còn lại", value=f"**{len(u)}**")
     embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
     await send_log(interaction.guild, embed)
 
 @bot.tree.command(name="resetseo", description="♻️ Xoá sạch sẹo thành viên")
 async def resetseo(interaction: discord.Interaction, member: discord.Member):
+    await interaction.response.defer()  # 🔴 FIX TIMEOUT
+
     if not is_admin(interaction.user):
-        return await interaction.response.send_message("❌ Bạn không có quyền", ephemeral=True)
+        return await interaction.followup.send("❌ Bạn không có quyền", ephemeral=True)
 
     data["users"][str(member.id)] = []
     save(data)
@@ -179,11 +184,13 @@ async def resetseo(interaction: discord.Interaction, member: discord.Member):
     embed.add_field(name="👤 Thành viên", value=member.mention)
     embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
     await send_log(interaction.guild, embed)
 
 @bot.tree.command(name="topseo", description="🏆 Bảng xếp hạng vi phạm")
 async def topseo(interaction: discord.Interaction):
+    await interaction.response.defer()  # 🔴 an toàn
+
     ranked = sorted(
         data["users"].items(),
         key=lambda x: len(x[1]),
@@ -202,7 +209,7 @@ async def topseo(interaction: discord.Interaction):
     )
     embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="xemseo", description="👁️ Xem sẹo & vi phạm của bạn")
 async def xemseo(interaction: discord.Interaction):
@@ -230,15 +237,15 @@ async def xemseo(interaction: discord.Interaction):
 
 @bot.tree.command(name="datkenhlog", description="📥 Đặt kênh log sẹo")
 async def datkenhlog(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer()  # 🔴 FIX TIMEOUT
+
     if not interaction.user.guild_permissions.administrator:
-        return await interaction.response.send_message("❌ Chỉ Admin server", ephemeral=True)
+        return await interaction.followup.send("❌ Chỉ Admin server", ephemeral=True)
 
     data["config"]["log_channel"] = channel.id
     save(data)
 
-    await interaction.response.send_message(
-        f"✅ Đã đặt kênh log sẹo tại {channel.mention}"
-    )
+    await interaction.followup.send(f"✅ Đã đặt kênh log sẹo tại {channel.mention}")
 
 # ================= START =================
 if __name__ == "__main__":
