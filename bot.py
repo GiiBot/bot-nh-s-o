@@ -72,6 +72,94 @@ def get_user(uid):
     return data["users"][uid]
 
 # ================= HELPERS =================
+class SeoProfilePaginator(discord.ui.View):
+    def __init__(self, user_id: int, page: int = 0):
+        super().__init__(timeout=120)
+        self.user_id = user_id
+        self.page = page
+
+    def build_embed(self, guild):
+        records = data["users"].get(str(self.user_id), [])
+        total = len(records)
+        records = records[::-1]  # mới -> cũ
+
+        member = guild.get_member(self.user_id)
+        name = member.display_name if member else f"ID {self.user_id}"
+        avatar = member.display_avatar.url if member else None
+
+        r = records[self.page]
+
+        embed = discord.Embed(
+            title=f"🧬 HỒ SƠ SẸO – {name}",
+            description=f"🧾 **Case `{r['case']}`**",
+            color=CIARA_LEVEL_COLOR.get(min(total, 3), 0x8B0000)
+        )
+
+        embed.add_field(name="📌 Lý do", value=f"```{r['reason']}```", inline=False)
+        embed.add_field(name="👤 Ghi bởi", value=r["by"])
+        embed.add_field(name="🕒 Thời gian", value=r["time"])
+        embed.add_field(name="☠️ Tổng sẹo", value=str(total), inline=False)
+
+        if avatar:
+            embed.set_thumbnail(url=avatar)
+
+        banner = get_ciara_banner(total)
+        if banner:
+            embed.set_image(url=banner)
+
+        embed.set_footer(
+            text=f"{CIARA_FOOTER} • Trang {self.page + 1}/{total}",
+            icon_url=CIARA_ICON
+        )
+        return embed
+
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.page > 0:
+            self.page -= 1
+            await interaction.response.edit_message(
+                embed=self.build_embed(interaction.guild),
+                view=self
+            )
+        else:
+            await interaction.response.defer()
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        records = data["users"].get(str(self.user_id), [])
+        if self.page < len(records) - 1:
+            self.page += 1
+            await interaction.response.edit_message(
+                embed=self.build_embed(interaction.guild),
+                view=self
+            )
+        else:
+            await interaction.response.defer()
+
+
+class SeoProfileEntryView(discord.ui.View):
+    def __init__(self, user_id: int):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+
+    @discord.ui.button(label="📄 Xem hồ sơ sẹo", style=discord.ButtonStyle.danger)
+    async def open(self, interaction: discord.Interaction, button: discord.ui.Button):
+        records = data["users"].get(str(self.user_id), [])
+        if not records:
+            return await interaction.response.send_message(
+                "✨ Thành viên này không có hồ sơ sẹo.",
+                ephemeral=True
+            )
+
+        paginator = SeoProfilePaginator(self.user_id)
+        embed = paginator.build_embed(interaction.guild)
+
+        await interaction.response.send_message(
+            embed=embed,
+            view=paginator,
+            ephemeral=True
+        )
+
 def is_admin(member: discord.Member):
     return member.guild_permissions.administrator
 
@@ -270,7 +358,7 @@ async def xemseo(interaction: discord.Interaction):
     u = get_user(interaction.user.id)
     if not u:
         return await interaction.response.send_message(
-            "✨ Bạn là công dân sạch của **LORD OF CIARA**",
+            "✨ Bạn là thành viên trong sạch của **LORD OF CIARA**",
             ephemeral=True
         )
 
@@ -297,6 +385,53 @@ async def datkenhlog(interaction: discord.Interaction, channel: discord.TextChan
     data["config"]["log_channel"] = channel.id
     save(data)
     await interaction.response.send_message(f"✅ Đã đặt kênh log tại {channel.mention}")
+    @bot.tree.command(name="topseo", description="☠️ Bảng tử hình – BXH thành viên nhiều sẹo nhất")
+async def topseo(interaction: discord.Interaction):
+    try:
+        ranking = []
+        for uid, records in data["users"].items():
+            if records:
+                ranking.append((int(uid), len(records)))
+
+        if not ranking:
+            return await interaction.response.send_message(
+                "✨ Hiện chưa có ai bị ghi sẹo.",
+                ephemeral=True
+            )
+
+        ranking.sort(key=lambda x: x[1], reverse=True)
+        ranking = ranking[:10]
+
+        embed = discord.Embed(
+            title="☠️ BẢNG TỬ HÌNH – LORD OF CIARA",
+            color=0x0F0F0F
+        )
+
+        for i, (uid, count) in enumerate(ranking, start=1):
+            member = interaction.guild.get_member(uid)
+            name = member.display_name if member else f"ID {uid}"
+            emoji = "☠️" if count >= 3 else "🩸"
+
+            embed.add_field(
+                name=f"#{i} {emoji} {name}",
+                value=f"`{count}` sẹo",
+                inline=False
+            )
+
+        embed.set_footer(text=CIARA_FOOTER, icon_url=CIARA_ICON)
+
+        # 🔴 Button xem hồ sơ (TOP 1)
+        view = SeoProfileEntryView(ranking[0][0])
+
+        await interaction.response.send_message(embed=embed, view=view)
+
+    except Exception as e:
+        print("❌ TOPSEO ERROR:", e)
+        await interaction.response.send_message(
+            "⚠️ Không thể tạo bảng tử hình.",
+            ephemeral=True
+        )
+
 
 # ================= START =================
 if __name__ == "__main__":
