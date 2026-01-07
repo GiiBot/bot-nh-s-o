@@ -1,0 +1,12 @@
+{
+  "config": {
+    "admin_role": "Admin",
+    "log_channel": null,
+    "scar_roles": {
+      "1": "Sẹo 1",
+      "2": "Sẹo 2",
+      "3": "Sẹo 3"
+    }
+  },
+  "users": {}
+}
