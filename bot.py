@@ -120,7 +120,7 @@ class SeoProfilePaginator(discord.ui.View):
 
     def build(self, guild):
         records = data["users"][str(self.uid)][::-1]
-        self.page = max(0, min(self.page, len(records)-1))
+        self.page = max(0, min(self.page, len(records) - 1))
         r = records[self.page]
 
         m = guild.get_member(self.uid)
@@ -129,7 +129,7 @@ class SeoProfilePaginator(discord.ui.View):
         embed = discord.Embed(
             title=f"🧬 HỒ SƠ SẸO | {m.display_name if m else self.uid}",
             description=f"☠️ **Tổng:** `{total}` • 🧾 **Case:** `{r['case']}`",
-            color=CIARA_LEVEL_COLOR.get(min(total,3))
+            color=CIARA_LEVEL_COLOR.get(min(total, 3))
         )
 
         embed.add_field(name="📌 Lý do", value=f"> {r['reason']}", inline=False)
@@ -140,18 +140,27 @@ class SeoProfilePaginator(discord.ui.View):
         if banner:
             embed.set_image(url=banner)
 
-        embed.set_footer(text=f"{CIARA_FOOTER} • Trang {self.page+1}/{total}", icon_url=CIARA_ICON)
+        embed.set_footer(
+            text=f"{CIARA_FOOTER} • Trang {self.page + 1}/{total}",
+            icon_url=CIARA_ICON
+        )
         return embed
 
     @discord.ui.button(label="⬅️", style=discord.ButtonStyle.secondary)
     async def prev(self, interaction, _):
         self.page -= 1
-        await interaction.response.edit_message(embed=self.build(interaction.guild), view=self)
+        await interaction.response.edit_message(
+            embed=self.build(interaction.guild),
+            view=self
+        )
 
     @discord.ui.button(label="➡️", style=discord.ButtonStyle.secondary)
     async def next(self, interaction, _):
         self.page += 1
-        await interaction.response.edit_message(embed=self.build(interaction.guild), view=self)
+        await interaction.response.edit_message(
+            embed=self.build(interaction.guild),
+            view=self
+        )
 
 # ================= TOPSEO VIEW =================
 class TopSeoSelectView(discord.ui.View):
@@ -165,7 +174,7 @@ class TopSeoSelectView(discord.ui.View):
                     description=f"ID {u}",
                     value=str(u),
                     emoji="☠️"
-                ) for u,c in ranking
+                ) for u, c in ranking
             ]
         )
         self.select.callback = self.cb
@@ -174,11 +183,19 @@ class TopSeoSelectView(discord.ui.View):
     async def cb(self, interaction):
         uid = int(self.select.values[0])
         p = SeoProfilePaginator(uid)
-        await interaction.response.send_message(embed=p.build(interaction.guild), view=p, ephemeral=True)
+        await interaction.response.send_message(
+            embed=p.build(interaction.guild),
+            view=p,
+            ephemeral=True
+        )
 
 # ================= MODAL =================
 class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – CIARA"):
-    ly_do = discord.ui.TextInput(label="Lý do vi phạm", style=discord.TextStyle.paragraph)
+    ly_do = discord.ui.TextInput(
+        label="Lý do vi phạm",
+        style=discord.TextStyle.paragraph,
+        max_length=300
+    )
 
     def __init__(self, member):
         super().__init__()
@@ -205,22 +222,30 @@ class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – CIARA"):
         embed = discord.Embed(
             title="⚔️ CIARA DISCIPLINE REPORT",
             description=f"{self.member.mention}\n🧾 `{cid}` • ☠️ `{len(u)}` sẹo",
-            color=CIARA_LEVEL_COLOR.get(min(len(u),3))
+            color=CIARA_LEVEL_COLOR.get(min(len(u), 3))
         )
         embed.add_field(name="📌 Lý do", value=f"> {self.ly_do.value}", inline=False)
 
-        if len(u) in PENALTY_RULES:
-            embed.add_field(name="⚠️ Hình phạt", reminding:=PENALTY_RULES[len(u)], inline=False)
+        penalty = PENALTY_RULES.get(len(u))
+        if penalty:
+            embed.add_field(
+                name="⚠️ Hình phạt",
+                value=penalty,
+                inline=False
+            )
 
         data["admin_logs"].append({
-            "action":"ghiseo",
-            "admin":interaction.user.name,
-            "target":self.member.id,
-            "time":datetime.now(VN_TZ).strftime("%d/%m %H:%M")
+            "action": "ghiseo",
+            "admin": interaction.user.name,
+            "target": self.member.id,
+            "time": datetime.now(VN_TZ).strftime("%d/%m %H:%M")
         })
         save()
 
-        await interaction.followup.send(f"@everyone ⚠️ {self.member.mention}", embed=embed)
+        await interaction.followup.send(
+            content=f"@everyone ⚠️ {self.member.mention}",
+            embed=embed
+        )
         await send_log(interaction.guild, embed)
         await send_dm(self.member, embed)
 
@@ -228,116 +253,197 @@ class GhiSeoModal(discord.ui.Modal, title="⚔️ GHI SẸO – CIARA"):
 @bot.tree.command(name="ghiseo")
 async def ghiseo(interaction, member: discord.Member):
     if not is_admin(interaction.user):
-        return await interaction.response.send_message("❌ Admin only", ephemeral=True)
+        return await interaction.response.send_message(
+            "❌ Admin only",
+            ephemeral=True
+        )
     await interaction.response.send_modal(GhiSeoModal(member))
 
 @bot.tree.command(name="goiseo")
 async def goiseo(interaction, member: discord.Member):
     await safe_defer(interaction, True)
+
     if not is_admin(interaction.user):
-        return await interaction.followup.send("❌ Admin only", ephemeral=True)
+        return await interaction.followup.send(
+            "❌ Admin only",
+            ephemeral=True
+        )
 
     u = get_user(member.id)
     if not u:
-        return await interaction.followup.send("⚠️ Không có sẹo", ephemeral=True)
+        return await interaction.followup.send(
+            "⚠️ Không có sẹo",
+            ephemeral=True
+        )
 
-    r = u.pop()
+    removed = u.pop()
     save()
     await update_scar_roles(member, len(u))
 
     data["admin_logs"].append({
-        "action":"goiseo","admin":interaction.user.name,
-        "target":member.id,
-        "time":datetime.now(VN_TZ).strftime("%d/%m %H:%M")
+        "action": "goiseo",
+        "admin": interaction.user.name,
+        "target": member.id,
+        "time": datetime.now(VN_TZ).strftime("%d/%m %H:%M")
     })
     save()
 
-    await interaction.followup.send(f"✅ Đã gỡ sẹo `{r['case']}` cho {member.mention}", ephemeral=True)
+    await interaction.followup.send(
+        f"✅ Đã gỡ sẹo `{removed['case']}` cho {member.mention}",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="resetseo")
 async def resetseo(interaction, member: discord.Member):
     await safe_defer(interaction, True)
+
     if not is_admin(interaction.user):
-        return await interaction.followup.send("❌ Admin only", ephemeral=True)
+        return await interaction.followup.send(
+            "❌ Admin only",
+            ephemeral=True
+        )
 
     data["users"][str(member.id)] = []
     save()
     await update_scar_roles(member, 0)
 
     data["admin_logs"].append({
-        "action":"resetseo","admin":interaction.user.name,
-        "target":member.id,
-        "time":datetime.now(VN_TZ).strftime("%d/%m %H:%M")
+        "action": "resetseo",
+        "admin": interaction.user.name,
+        "target": member.id,
+        "time": datetime.now(VN_TZ).strftime("%d/%m %H:%M")
     })
     save()
 
-    await interaction.followup.send(f"♻️ Đã reset sẹo cho {member.mention}", ephemeral=True)
+    await interaction.followup.send(
+        f"♻️ Đã reset sẹo cho {member.mention}",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="xemseo")
 async def xemseo(interaction):
     await safe_defer(interaction, True)
+
     u = get_user(interaction.user.id)
     if not u:
-        return await interaction.followup.send("✨ Bạn là công dân sạch", ephemeral=True)
+        return await interaction.followup.send(
+            "✨ Bạn là công dân sạch",
+            ephemeral=True
+        )
+
     p = SeoProfilePaginator(interaction.user.id)
-    await interaction.followup.send(embed=p.build(interaction.guild), view=p, ephemeral=True)
+    await interaction.followup.send(
+        embed=p.build(interaction.guild),
+        view=p,
+        ephemeral=True
+    )
 
 @bot.tree.command(name="topseo")
 async def topseo(interaction):
     await safe_defer(interaction)
-    ranking = [(int(uid), len(v)) for uid,v in data["users"].items() if v]
-    if not ranking:
-        return await interaction.followup.send("✨ Chưa có ai bị ghi sẹo", ephemeral=True)
 
-    ranking.sort(key=lambda x:x[1], reverse=True)
+    ranking = [(int(uid), len(v)) for uid, v in data["users"].items() if v]
+    if not ranking:
+        return await interaction.followup.send(
+            "✨ Chưa có ai bị ghi sẹo",
+            ephemeral=True
+        )
+
+    ranking.sort(key=lambda x: x[1], reverse=True)
     ranking = ranking[:10]
 
-    embed = discord.Embed(title="☠️ BẢNG TỬ HÌNH", color=0x0F0F0F)
-    for i,(uid,c) in enumerate(ranking,1):
-        m = interaction.guild.get_member(uid)
-        embed.add_field(name=f"#{i} {m.display_name if m else uid}", value=f"{c} sẹo", inline=False)
+    embed = discord.Embed(
+        title="☠️ BẢNG TỬ HÌNH",
+        color=0x0F0F0F
+    )
 
-    await interaction.followup.send(embed=embed, view=TopSeoSelectView(ranking))
+    for i, (uid, c) in enumerate(ranking, 1):
+        m = interaction.guild.get_member(uid)
+        embed.add_field(
+            name=f"#{i} {m.display_name if m else uid}",
+            value=f"{c} sẹo",
+            inline=False
+        )
+
+    await interaction.followup.send(
+        embed=embed,
+        view=TopSeoSelectView(ranking)
+    )
 
 @bot.tree.command(name="thongke")
 async def thongke(interaction):
     await safe_defer(interaction)
+
     week = datetime.now(VN_TZ).isocalendar()[1]
     stats = {}
-    for uid,rs in data["users"].items():
-        for r in rs:
-            if r["week"]==week:
-                stats[uid]=stats.get(uid,0)+1
-    if not stats:
-        return await interaction.followup.send("✨ Tuần này không có vi phạm", ephemeral=True)
 
-    embed = discord.Embed(title=f"📊 THỐNG KÊ TUẦN {week}", color=0xB30000)
-    for uid,c in stats.items():
+    for uid, rs in data["users"].items():
+        for r in rs:
+            if r["week"] == week:
+                stats[uid] = stats.get(uid, 0) + 1
+
+    if not stats:
+        return await interaction.followup.send(
+            "✨ Tuần này không có vi phạm",
+            ephemeral=True
+        )
+
+    embed = discord.Embed(
+        title=f"📊 THỐNG KÊ TUẦN {week}",
+        color=0xB30000
+    )
+
+    for uid, c in stats.items():
         m = interaction.guild.get_member(int(uid))
-        embed.add_field(name=m.display_name if m else uid, value=f"{c} sẹo", inline=False)
+        embed.add_field(
+            name=m.display_name if m else uid,
+            value=f"{c} sẹo",
+            inline=False
+        )
 
     await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="lichsuadmin")
 async def lichsuadmin(interaction):
     await safe_defer(interaction, True)
-    if not is_admin(interaction.user):
-        return await interaction.followup.send("❌ Admin only", ephemeral=True)
 
-    embed = discord.Embed(title="🧾 LỊCH SỬ ADMIN", color=0x0F0F0F)
+    if not is_admin(interaction.user):
+        return await interaction.followup.send(
+            "❌ Admin only",
+            ephemeral=True
+        )
+
+    embed = discord.Embed(
+        title="🧾 LỊCH SỬ ADMIN",
+        color=0x0F0F0F
+    )
+
     for l in data["admin_logs"][-10:]:
-        embed.add_field(name=l["action"], value=f"{l['admin']} → {l['target']} ({l['time']})", inline=False)
+        embed.add_field(
+            name=l["action"],
+            value=f"{l['admin']} → {l['target']} ({l['time']})",
+            inline=False
+        )
 
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="datkenhlog")
 async def datkenhlog(interaction, channel: discord.TextChannel):
     await safe_defer(interaction, True)
+
     if not is_admin(interaction.user):
-        return await interaction.followup.send("❌ Admin only", ephemeral=True)
-    data["config"]["log_channel"]=channel.id
+        return await interaction.followup.send(
+            "❌ Admin only",
+            ephemeral=True
+        )
+
+    data["config"]["log_channel"] = channel.id
     save()
-    await interaction.followup.send(f"✅ Đã đặt kênh log: {channel.mention}", ephemeral=True)
+
+    await interaction.followup.send(
+        f"✅ Đã đặt kênh log: {channel.mention}",
+        ephemeral=True
+    )
 
 # ================= READY =================
 @bot.event
