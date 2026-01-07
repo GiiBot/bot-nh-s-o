@@ -158,21 +158,26 @@ class ThongKeView(discord.ui.View):
         self.max_page = math.ceil(len(rows) / PER_PAGE)
 
     def build_embed(self):
-        start = self.page * PER_PAGE
-        end = start + PER_PAGE
-        e = make_embed(
-            f"📊 THỐNG KÊ VI PHẠM – Trang {self.page+1}/{self.max_page}",
-            0x3498db
+    start = self.page * PER_PAGE
+    end = start + PER_PAGE
+
+    e = make_embed(
+        f"📊 THỐNG KÊ VI PHẠM – Trang {self.page+1}/{self.max_page}",
+        0x3498db
+    )
+
+    for uid, total, unpaid, paid in self.rows[start:end]:
+        member = self.guild.get_member(uid)
+        name = member.display_name if member else f"User {uid}"
+
+        e.add_field(
+            name=name,
+            value=f"📁 {total} sẹo | ❌ {unpaid} | ✅ {paid}",
+            inline=False
         )
-        for uid, total, unpaid, paid in self.rows[start:end]:
-            member = self.guild.get_member(uid)
-            name = member.mention if member else f"<@{uid}>"
-            e.add_field(
-                name=name,
-                value=f"📁 {total} sẹo | ❌ {unpaid} | ✅ {paid}",
-                inline=False
-            )
-        return e
+
+    return e
+
 
     @discord.ui.button(label="⬅️", style=discord.ButtonStyle.secondary)
     async def prev(self, interaction: discord.Interaction, _):
