@@ -192,6 +192,33 @@ async def thongke(interaction: discord.Interaction, member: discord.Member | Non
     e.add_field(name="❌ Chưa đóng", value=unpaid)
 
     await interaction.response.send_message(embed=e, ephemeral=True)
+@bot.tree.command(name="topseo", description="Xem bảng xếp hạng vi phạm CIARA")
+async def topseo(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    ranking = []
+
+    for uid, records in data["users"].items():
+        total = len(records)
+        if total == 0:
+            continue
+
+        unpaid = sum(1 for r in records if not r.get("paid"))
+        ranking.append((int(uid), total, unpaid))
+
+    if not ranking:
+        return await interaction.followup.send("✨ Hiện chưa có vi phạm nào")
+
+    # Sắp xếp theo số sẹo giảm dần
+    ranking.sort(key=lambda x: x[1], reverse=True)
+    ranking = ranking[:10]
+
+    e = make_embed("🏆 TOP VI PHẠM CIARA", 0xe67e22)
+
+    medals = ["🥇", "🥈", "🥉"]
+
+    for i, (uid, total, unpaid) in enumerate(ranking):
+        member = int
 
 @bot.tree.command(name="datkenhlog")
 async def datkenhlog(interaction: discord.Interaction, kenh: discord.abc.GuildChannel):
