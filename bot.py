@@ -213,7 +213,11 @@ class GhiSeoModal(discord.ui.Modal, title="🚨 GHI VI PHẠM"):
         await interaction.response.defer()
 
         u = get_user(self.member.id)
-        count = len(u) + 1
+
+ # CHỈ ĐẾM SẸO CHƯA ĐÓNG
+        active_seo = sum(1 for r in u if not r.get("paid"))
+        count = active_seo + 1
+
 
         record = {
             "case": next_case(),
