@@ -176,6 +176,40 @@ async def on_message(message: discord.Message):
     await bot.process_commands(message)
 
 # ================= READY =================
+@bot.tree.command(name="logquy", description="Xem lịch sử quỹ chiếm đóng")
+async def logquy(interaction: discord.Interaction, limit: int = 10):
+    if not is_admin(interaction.user):
+        return await interaction.response.send_message(
+            "❌ Admin only",
+            ephemeral=True
+        )
+
+    fund_cur.execute(
+        "SELECT user, amount, content, time FROM logs ORDER BY id DESC LIMIT ?",
+        (limit,)
+    )
+    rows = fund_cur.fetchall()
+
+    if not rows:
+        return await interaction.response.send_message(
+            "📭 Chưa có giao dịch nào",
+            ephemeral=True
+        )
+
+    msg = ""
+    for user, amount, content, time in rows:
+        sign = "+" if amount > 0 else ""
+        msg += (
+            f"[{time}] {sign}{format_money(amount)}$\n"
+            f"{user}\n"
+            f"{content}\n\n"
+        )
+
+    await interaction.response.send_message(
+        f"```{msg}```",
+        ephemeral=True
+    )
+
 @bot.event
 async def on_ready():
     try:
