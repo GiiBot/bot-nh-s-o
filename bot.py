@@ -101,8 +101,8 @@ def format_money(x):
 # ================= ON MESSAGE (QUỸ) =================
 @bot.event
 async def on_message(message: discord.Message):
-    if message.author.bot:
-        return
+    #if message.author.bot:
+     #   return
 
     if message.channel.id == FUND_CHANNEL_ID:
         clean = message.content.replace(".", "")
